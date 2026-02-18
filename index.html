@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="ui">
+    <div id="power">Power: <span id="powerPercent">100</span>%</div>
+    <div id="time">12 AM</div>
+    <div id="night">Night 1</div>
+  </div>
+  <div id="controls">
+    <button id="leftLight">Left Light</button>
+    <button id="rightLight">Right Light</button>
+    <button id="leftDoor">Left Door</button>
+    <button id="rightDoor">Right Door</button>
+    <button id="cameraBtn">CAMERA</button>
+  </div>
+  <div id="cameraControls" style="display:none;">
+    <button class="camBtn" data-cam="1">1</button>
+    <button class="camBtn" data-cam="2">2</button>
+    <button class="camBtn" data-cam="3">3</button>
+    <button class="camBtn" data-cam="4">4</button>
+    <button class="camBtn" data-cam="5">5</button>
+    <button class="camBtn" data-cam="6">6</button>
+    <button class="camBtn" data-cam="7">7</button>
+    <button class="camBtn" data-cam="8">8</button>
+    <button class="camBtn" data-cam="9">9</button>
+  </div>
+  <div id="gameOver" style="display:none;">
+    <h1>Game Over!</h1>
+    <button onclick="restartGame()">Restart</button>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
