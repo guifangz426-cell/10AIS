@@ -1,6 +1,103 @@
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+// Initialize game with error handling
+function initializeGame() {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Load character images
+  const freddyMask = new Image();
+  freddyMask.src = 'images/character1.png';
+
+  const bonnieMask = new Image();
+  bonnieMask.src = 'images/character2.png';
+
+  const chicaMask = new Image();
+  chicaMask.src = 'images/character3.png';
+
+  const foxyMask = new Image();
+  foxyMask.src = 'images/character4.png';
+
+  if (!canvas || !ctx) {
+    console.error('Failed to initialize canvas - game will not work');
+    return; // Exit gracefully instead of throwing error
+  }
+
+  
+  ctx.imageSmoothingEnabled = false;
+  
+  // Make canvas and context available globally
+  window.gameCanvas = canvas;
+  window.gameCtx = ctx;
+}
+
+// Initialize the game
+initializeGame();
+
+// Helper function to safely get DOM elements
+function safeGetElement(id) {
+  const element = document.getElementById(id);
+  if (!element) {
+    console.warn(`Element with id '${id}' not found`);
+  }
+  return element;
+}
+
+// Load animatronic images with error handling
+const animatronicImages = {
+  freddy: new Image(),
+  bonnie: new Image(),
+  chica: new Image(),
+  foxy: new Image()
+};
+
+// Track image loading status
+const imageLoadStatus = {
+  freddy: false,
+  bonnie: false,
+  chica: false,
+  foxy: false
+};
+
+// Set up image loading with error handling and debugging
+animatronicImages.freddy.onload = () => {
+  imageLoadStatus.freddy = true;
+  console.log('Freddy image loaded successfully, dimensions:', animatronicImages.freddy.width + 'x' + animatronicImages.freddy.height);
+};
+animatronicImages.freddy.onerror = () => {
+  console.error('Freddy image failed to load, using fallback');
+  console.log('Image src:', 'download.png');
+};
+animatronicImages.freddy.src = 'images/character1.png';
+
+animatronicImages.bonnie.onload = () => {
+  imageLoadStatus.bonnie = true;
+  console.log('Bonnie image loaded successfully, dimensions:', animatronicImages.bonnie.width + 'x' + animatronicImages.bonnie.height);
+};
+animatronicImages.bonnie.onerror = () => {
+  console.error('Bonnie image failed to load, using fallback');
+  console.log('Image src:', 'download (1).png');
+};
+animatronicImages.bonnie.src = 'images/character2.png';
+
+animatronicImages.chica.onload = () => {
+  imageLoadStatus.chica = true;
+  console.log('Chica image loaded successfully, dimensions:', animatronicImages.chica.width + 'x' + animatronicImages.chica.height);
+};
+animatronicImages.chica.onerror = () => {
+  console.error('Chica image failed to load, using fallback');
+  console.log('Image src:', 'images/character3.png');
+};
+animatronicImages.chica.src = 'images/character3.png';
+
+animatronicImages.foxy.onload = () => {
+  imageLoadStatus.foxy = true;
+  console.log('Foxy image loaded successfully, dimensions:', animatronicImages.foxy.width + 'x' + animatronicImages.foxy.height);
+};
+animatronicImages.foxy.onerror = () => {
+  console.error('Foxy image failed to load, using fallback');
+  console.log('Image src:', 'download (3).png');
+};
+animatronicImages.foxy.src = 'images/character4.png';
 
 // Mouse tracking for parallax effect
 let mouseX = 400; // Center of screen
@@ -11,11 +108,13 @@ const parallaxStrength = 0.15; // How much the screen moves
 const smoothness = 0.1; // How smooth the movement is
 
 // Track mouse movement
-canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  targetMouseX = e.clientX - rect.left;
-  targetMouseY = e.clientY - rect.top;
-});
+if (window.gameCanvas) {
+  window.gameCanvas.addEventListener('mousemove', (e) => {
+    const rect = window.gameCanvas.getBoundingClientRect();
+    targetMouseX = e.clientX - rect.left;
+    targetMouseY = e.clientY - rect.top;
+  });
+}
 
 // Update mouse position smoothly
 function updateMousePosition() {
@@ -43,6 +142,11 @@ let gameState = {
   currentCamera: 1 // Start with Show Stage
 };
 
+let doorAnimation = {
+  leftDoor: { animating: false, position: 0, target: 0, speed: 0.15 },
+  rightDoor: { animating: false, position: 0, target: 0, speed: 0.15 }
+};
+
 let animatronics = {
   bonnie: { position: 0 },  // 0=Stage,1=Backstage,2=WestHall,3=WestCorner,4=Window
   chica: { position: 0 },   // 0=Stage,1=Dining,2=EastHall,3=EastCorner,4=Door
@@ -62,7 +166,52 @@ let gameStartTime = Date.now();
 let lastTime = 0;
 
 // [Keep all your existing 3D functions unchanged - draw3DWall, draw3DDoor, draw3DDesk]
+function drawAnimatronicSprite(image, x, y, width, height, fallbackColor = '#888') {
+  if (!image.complete) {
+    // Fallback: draw colored rectangle if image failed to load
+    window.gameCtx.fillStyle = fallbackColor;
+    window.gameCtx.fillRect(x, y, width, height);
+    return;
+  }
+  
+  window.gameCtx.save();
+  
+  // Create temporary canvas to remove white background
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCanvas.width = image.width;
+  tempCanvas.height = image.height;
+  
+  // Draw image to temp canvas
+  tempCtx.drawImage(image, 0, 0);
+  
+  // Get image data and remove white background
+  const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+  const data = imageData.data;
+  
+  for (let i = 0; i < data.length; i += 4) {
+    // Remove white/light pixels (make transparent)
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    
+    // If pixel is white or very light, make it transparent
+    if (r > 200 && g > 200 && b > 200) {
+      data[i + 3] = 0; // Set alpha to 0 (transparent)
+    }
+  }
+  
+  // Put modified image data back
+  tempCtx.putImageData(imageData, 0, 0);
+  
+  // Draw the processed image with proper scaling
+  window.gameCtx.drawImage(tempCanvas, x, y, width, height);
+  
+  window.gameCtx.restore();
+}
+
 function draw3DWall(x, y, w, h, colorDark, colorLight) {
+  const ctx = window.gameCtx; // Use global context
   // Main wall with gradient for depth
   const wallGradient = ctx.createLinearGradient(x, y, x + w, y + h);
   wallGradient.addColorStop(0, colorLight);
@@ -106,9 +255,59 @@ function draw3DWall(x, y, w, h, colorDark, colorLight) {
   }
 }
 
-function draw3DDoor(x, y, w, h, open) {
-  if (!open) {
+function draw3DDoor(x, y, w, h, open, side) {
+  const anim = side === 'left' ? doorAnimation.leftDoor : doorAnimation.rightDoor;
+  
+  if (!open && anim.position < 1) {
+    // SLAMMING ANIMATION - Door coming from above
+    const doorHeight = h * anim.position;
+    const doorY = y + (h - doorHeight);
+    
     // Door with 3D effect
+    const doorGradient = ctx.createLinearGradient(x, doorY, x + w, doorY + doorHeight);
+    doorGradient.addColorStop(0, '#888');
+    doorGradient.addColorStop(0.5, '#666');
+    doorGradient.addColorStop(1, '#444');
+    ctx.fillStyle = doorGradient;
+    ctx.fillRect(x, doorY, w, doorHeight);
+    
+    // Door panels (scaled with animation)
+    if (anim.position > 0.3) {
+      const panelScale = (anim.position - 0.3) / 0.7;
+      ctx.fillStyle = '#555';
+      const panelHeight = (doorHeight / 3 - 10) * panelScale;
+      ctx.fillRect(x + 10, doorY + 10, w - 20, panelHeight);
+      ctx.fillRect(x + 10, doorY + doorHeight/3 + 10, w - 20, panelHeight);
+      ctx.fillRect(x + 10, doorY + 2*doorHeight/3 + 10, w - 20, panelHeight);
+      
+      // Door handle
+      ctx.fillStyle = '#C0C0C0';
+      ctx.beginPath();
+      ctx.arc(x + w - 20, doorY + doorHeight/2, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // 3D door frame
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x - 5, y - 5, 5, h + 10);
+    ctx.fillRect(x + w, y - 5, 5, h + 10);
+    ctx.fillRect(x - 5, y - 5, w + 10, 5);
+    ctx.fillRect(x - 5, y + h, w + 10, 5);
+    
+    // Shadow beneath door
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(x + w + 5, y + 5, 15, h);
+    
+    // Motion blur effect during slam
+    if (anim.animating && anim.position < 0.8) {
+      ctx.fillStyle = 'rgba(100,100,100,0.2)';
+      for (let i = 1; i <= 3; i++) {
+        const blurY = doorY - (i * 10 * (1 - anim.position));
+        ctx.fillRect(x, blurY, w, 5);
+      }
+    }
+  } else if (!open && anim.position >= 1) {
+    // Fully closed door
     const doorGradient = ctx.createLinearGradient(x, y, x + w, y + h);
     doorGradient.addColorStop(0, '#888');
     doorGradient.addColorStop(0.5, '#666');
@@ -130,13 +329,9 @@ function draw3DDoor(x, y, w, h, open) {
     
     // 3D door frame
     ctx.fillStyle = '#333';
-    // Left frame
     ctx.fillRect(x - 5, y - 5, 5, h + 10);
-    // Right frame
     ctx.fillRect(x + w, y - 5, 5, h + 10);
-    // Top frame
     ctx.fillRect(x - 5, y - 5, w + 10, 5);
-    // Bottom frame
     ctx.fillRect(x - 5, y + h, w + 10, 5);
     
     // Shadow
@@ -144,12 +339,9 @@ function draw3DDoor(x, y, w, h, open) {
     ctx.fillRect(x + w + 5, y + 5, 15, h);
   } else {
     // OPEN DOOR - Show hallway beyond
-    // Draw doorway to hallway
     if (x === 10) {
-      // Left door - show West Hall
       drawOpenLeftDoorway(x, y, w, h);
     } else {
-      // Right door - show East Hall  
       drawOpenRightDoorway(x, y, w, h);
     }
     
@@ -203,16 +395,13 @@ function drawOpenLeftDoorway(x, y, w, h) {
   // If Bonnie is in the hall, show him
   if (animatronics.bonnie.position === 2) {
     // Bonnie in West Hall
-    const bonnieScale = 0.6;
-    ctx.fillStyle = '#4B0082';
-    ctx.fillRect(x + 20, y + 40, 48 * bonnieScale, 72 * bonnieScale);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x + 25, y + 50, 5 * bonnieScale, 5 * bonnieScale);
-    ctx.fillRect(x + 35, y + 50, 5 * bonnieScale, 5 * bonnieScale);
-    ctx.fillStyle = '#FF69B4';
-    ctx.fillRect(x + 27, y + 60, 18 * bonnieScale, 3 * bonnieScale);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(x + 25, y + 65, 24 * bonnieScale, 12 * bonnieScale);
+    drawAnimatronicSprite(
+      animatronicImages.bonnie,
+      x + 20,
+      y + 40,
+      48 * 0.6,
+      72 * 0.6
+    );
   }
   
   // Light illumination if left light is on
@@ -277,22 +466,13 @@ function drawOpenRightDoorway(x, y, w, h) {
   // If Chica is in the hall, show her
   if (animatronics.chica.position === 2) {
     // Chica in East Hall
-    const chicaScale = 0.6;
-    ctx.fillStyle = '#aa0';
-    ctx.fillRect(x + w - 68, y + 40, 48 * chicaScale, 72 * chicaScale);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x + w - 63, y + 50, 5 * chicaScale, 5 * chicaScale);
-    ctx.fillRect(x + w - 53, y + 50, 5 * chicaScale, 5 * chicaScale);
-    ctx.fillStyle = '#FFA500';
-    ctx.fillRect(x + w - 61, y + 60, 18 * chicaScale, 3 * chicaScale);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(x + w - 63, y + 65, 24 * chicaScale, 12 * chicaScale);
-    
-    // Chica's cupcake
-    ctx.fillStyle = '#FF69B4';
-    ctx.fillRect(x + w - 35, y + 30, 15 * chicaScale, 15 * chicaScale);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(x + w - 32, y + 33, 9 * chicaScale, 9 * chicaScale);
+    drawAnimatronicSprite(
+      animatronicImages.chica,
+      x + w - 68,
+      y + 40,
+      48 * 0.6,
+      72 * 0.6
+    );
   }
   
   // Light illumination if right light is on
@@ -429,6 +609,7 @@ function draw3DFloor() {
 
 // *** UPGRADED 3D CAMERA SYSTEM ***
 function drawCamera() {
+  const ctx = window.gameCtx;
   // Camera background with depth gradient
   const bgGradient = ctx.createLinearGradient(0, 0, 0, 600);
   bgGradient.addColorStop(0, '#1a1a1a');
@@ -501,18 +682,16 @@ function drawMiniCameraView() {
 }
 
 function drawCameraStatic() {
-  // Base static noise
-  const imageData = ctx.getImageData(0, 0, 800, 600);
-  const data = imageData.data;
-  
-  for(let i = 0; i < data.length; i += 4) {
-    const noise = Math.random() * 30;
-    data[i] = noise;     // Red
-    data[i + 1] = noise; // Green  
-    data[i + 2] = noise; // Blue
+  const ctx = window.gameCtx;
+  // Optimized static noise using overlay instead of ImageData manipulation
+  ctx.fillStyle = 'rgba(128,128,128,0.05)';
+  for(let i = 0; i < 100; i++) {
+    const x = Math.random() * 800;
+    const y = Math.random() * 600;
+    const w = Math.random() * 3;
+    const h = Math.random() * 20;
+    ctx.fillRect(x, y, w, h);
   }
-  
-  ctx.putImageData(imageData, 0, 0);
 }
 
 function drawCameraVignette() {
@@ -692,7 +871,14 @@ function drawShowStage3D() {
   draw3DFreddyCamera(400, 220, 1.0);
   
   if (animatronics.bonnie.position === 0) {
-    draw3DBonnieCamera(320, 220, 0.9);
+    // Bonnie on Show Stage - using PNG sprite
+    drawAnimatronicSprite(
+      animatronicImages.bonnie,
+      320,
+      220,
+      80 * 0.9,
+      120 * 0.9
+    );
   }
   
   if (animatronics.chica.position === 0) {
@@ -798,168 +984,625 @@ function draw3DPerspectiveFloor(x, y, width, height) {
 function draw3DFreddy(x, y, scale) {
   const scaledSize = 80 * scale;
   
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(x - scaledSize/2 + 10, y + scaledSize + 10, scaledSize, 20);
+  // Enhanced shadow with more realistic shape
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + scaledSize + 15, scaledSize * 0.6, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
   
-  // Freddy body with gradient
-  const freddyGradient = ctx.createLinearGradient(x - scaledSize/2, y, x + scaledSize/2, y + scaledSize);
-  freddyGradient.addColorStop(0, '#8B0000');
-  freddyGradient.addColorStop(1, '#4B0000');
-  ctx.fillStyle = freddyGradient;
-  ctx.fillRect(x - scaledSize/2, y, scaledSize, scaledSize);
+  // Freddy body with more detailed gradient and shape
+  const bodyGradient = ctx.createLinearGradient(x - scaledSize/2, y, x + scaledSize/2, y + scaledSize);
+  bodyGradient.addColorStop(0, '#A52A2A');
+  bodyGradient.addColorStop(0.3, '#8B0000');
+  bodyGradient.addColorStop(0.7, '#6B0000');
+  bodyGradient.addColorStop(1, '#4B0000');
+  ctx.fillStyle = bodyGradient;
   
-  // Freddy features
+  // Main body with rounded top
+  ctx.beginPath();
+  ctx.roundRect(x - scaledSize/2, y + 10, scaledSize, scaledSize - 10, 15 * scale);
+  ctx.fill();
+  
+  // Chest panel details
+  ctx.fillStyle = '#6B0000';
+  ctx.fillRect(x - scaledSize/2 + 10, y + 30, scaledSize - 20, 25 * scale);
+  
+  // Belly patch
+  ctx.fillStyle = '#FFF8DC';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 50, 20 * scale, 15 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw character image as head
+  if (animatronicImages.freddy.complete) {
+    ctx.save();
+    // Scale and position the image
+    const imageSize = scaledSize * 1.2;
+    ctx.drawImage(animatronicImages.freddy, x - imageSize/2, y - 20, imageSize, imageSize);
+    ctx.restore();
+  } else {
+    // Fallback: draw original head if image not loaded
+    const headGradient = ctx.createLinearGradient(x - 25 * scale, y - 20, x + 25 * scale, y + 20);
+    headGradient.addColorStop(0, '#B22222');
+    headGradient.addColorStop(1, '#8B0000');
+    ctx.fillStyle = headGradient;
+    ctx.beginPath();
+    ctx.arc(x, y + 10, 25 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Endoskeleton mask seams
+  ctx.strokeStyle = '#4A0000';
+  ctx.lineWidth = 1;
+  // Vertical seam
+  ctx.beginPath();
+  ctx.moveTo(x, y - 10);
+  ctx.lineTo(x, y + 30);
+  ctx.stroke();
+  // Horizontal seam
+  ctx.beginPath();
+  ctx.moveTo(x - 20 * scale, y + 10);
+  ctx.lineTo(x + 20 * scale, y + 10);
+  ctx.stroke();
+  
+  // Cheek plates
+  ctx.strokeStyle = '#6B0000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x - 15 * scale, y + 15, 8 * scale, 0, Math.PI * 0.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x + 15 * scale, y + 15, 8 * scale, Math.PI * 0.5, Math.PI);
+  ctx.stroke();
+  
+  // Ears
+  ctx.fillStyle = '#8B0000';
+  ctx.beginPath();
+  ctx.moveTo(x - 20 * scale, y - 5);
+  ctx.lineTo(x - 25 * scale, y - 25);
+  ctx.lineTo(x - 10 * scale, y - 15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 20 * scale, y - 5);
+  ctx.lineTo(x + 25 * scale, y - 25);
+  ctx.lineTo(x + 10 * scale, y - 15);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Eyes with more detail
   ctx.fillStyle = '#000';
-  ctx.fillRect(x - 20, y + 20, 8 * scale, 8 * scale);
-  ctx.fillRect(x + 12, y + 20, 8 * scale, 8 * scale);
-  ctx.fillStyle = '#FFD700';
-  ctx.fillRect(x - 15, y + 35, 30 * scale, 4 * scale);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x - 20, y + 45, 40 * scale, 20 * scale);
+  ctx.beginPath();
+  ctx.arc(x - 10 * scale, y + 10, 4 * scale, 0, Math.PI * 2);
+  ctx.arc(x + 10 * scale, y + 10, 4 * scale, 0, Math.PI * 2);
+  ctx.fill();
   
-  // Bowtie
+  // Eye glow
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.beginPath();
+  ctx.arc(x - 9 * scale, y + 9, 2 * scale, 0, Math.PI * 2);
+  ctx.arc(x + 11 * scale, y + 9, 2 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Nose
   ctx.fillStyle = '#000';
-  ctx.fillRect(x - 10, y - 10, 20 * scale, 8 * scale);
+  ctx.beginPath();
+  ctx.ellipse(x, y + 20, 3 * scale, 2 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Better bowtie
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.moveTo(x - 15 * scale, y - 5);
+  ctx.lineTo(x - 8 * scale, y - 2);
+  ctx.lineTo(x - 15 * scale, y + 1);
+  ctx.lineTo(x - 22 * scale, y - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 15 * scale, y - 5);
+  ctx.lineTo(x + 8 * scale, y - 2);
+  ctx.lineTo(x + 15 * scale, y + 1);
+  ctx.lineTo(x + 22 * scale, y - 2);
+  ctx.closePath();
+  ctx.fill();
+  
   ctx.fillStyle = '#FF0000';
-  ctx.fillRect(x - 8, y - 8, 16 * scale, 4 * scale);
+  ctx.beginPath();
+  ctx.moveTo(x - 12 * scale, y - 4);
+  ctx.lineTo(x - 8 * scale, y - 2);
+  ctx.lineTo(x - 12 * scale, y);
+  ctx.lineTo(x - 16 * scale, y - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 12 * scale, y - 4);
+  ctx.lineTo(x + 8 * scale, y - 2);
+  ctx.lineTo(x + 12 * scale, y);
+  ctx.lineTo(x + 16 * scale, y - 2);
+  ctx.closePath();
+  ctx.fill();
   
-  // Microphone
-  ctx.fillStyle = '#C0C0C0';
-  ctx.fillRect(x + 5, y + 40, 10 * scale, 40 * scale);
+  // Enhanced microphone with detailed endoskeleton parts
+  // Microphone stand pole
+  const micGradient = ctx.createLinearGradient(x + 20 * scale, y + 20, x + 24 * scale, y + 20);
+  micGradient.addColorStop(0, '#C0C0C0');
+  micGradient.addColorStop(0.5, '#A9A9A9');
+  micGradient.addColorStop(1, '#808080');
+  ctx.fillStyle = micGradient;
+  ctx.fillRect(x + 20 * scale, y + 20, 4 * scale, 35 * scale);
+  
+  // Microphone head with mesh detail
+  ctx.beginPath();
+  ctx.ellipse(x + 22 * scale, y + 18, 8 * scale, 6 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Microphone mesh pattern
+  ctx.fillStyle = '#696969';
+  for(let i = 0; i < 3; i++) {
+    for(let j = 0; j < 2; j++) {
+      ctx.beginPath();
+      ctx.arc(x + 18 * scale + i * 3, y + 16 * scale + j * 3, 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  // Endoskeleton jaw visible under mask
+  ctx.fillStyle = '#4A4A4A';
+  ctx.fillRect(x - 15 * scale, y + 35, 30 * scale, 8 * scale);
+  ctx.fillStyle = '#2C2C2C';
+  // Jaw teeth
+  for(let i = 0; i < 4; i++) {
+    ctx.fillRect(x - 12 * scale + i * 7, y + 38, 2 * scale, 3 * scale);
+  }
+  
+  // Top hat
   ctx.fillStyle = '#000';
-  ctx.fillRect(x + 8, y + 35, 4 * scale, 8 * scale);
-}
-
-function draw3DBonnie(x, y, scale) {
-  const scaledSize = 80 * scale;
-  
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(x - scaledSize/2 + 10, y + scaledSize + 10, scaledSize, 20);
-  
-  // Bonnie body with gradient
-  const bonnieGradient = ctx.createLinearGradient(x - scaledSize/2, y, x + scaledSize/2, y + scaledSize);
-  bonnieGradient.addColorStop(0, '#4B0082');
-  bonnieGradient.addColorStop(1, '#2E0040');
-  ctx.fillStyle = bonnieGradient;
-  ctx.fillRect(x - scaledSize/2, y, scaledSize, scaledSize);
-  
-  // Bonnie features
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x - 20, y + 20, 8 * scale, 8 * scale);
-  ctx.fillRect(x + 12, y + 20, 8 * scale, 8 * scale);
-  ctx.fillStyle = '#FF69B4';
-  ctx.fillRect(x - 15, y + 35, 30 * scale, 4 * scale);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x - 20, y + 45, 40 * scale, 20 * scale);
-  
-  // Bonnie mask
-  ctx.fillStyle = '#4B0082';
-  ctx.fillRect(x - 30, y - 20, 60 * scale, 25 * scale);
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x - 15, y - 15, 8 * scale, 8 * scale);
-  ctx.fillRect(x + 7, y - 15, 8 * scale, 8 * scale);
-  ctx.fillStyle = '#FF1493';
-  ctx.fillRect(x - 20, y - 25, 8 * scale, 8 * scale);
-  ctx.fillRect(x + 12, y - 25, 8 * scale, 8 * scale);
-  
-  // Guitar
-  ctx.fillStyle = '#8B4513';
-  ctx.fillRect(x - 30, y + 40, 60 * scale, 15 * scale);
-  ctx.fillStyle = '#654321';
-  ctx.fillRect(x + 10, y, 10 * scale, 40 * scale);
-  ctx.fillStyle = '#C0C0C0';
-  ctx.fillRect(x + 12, y + 2, 6 * scale, 10 * scale);
-  ctx.fillStyle = '#FFD700';
-  ctx.fillRect(x + 13, y + 4, 2 * scale, 2 * scale);
-  ctx.fillRect(x + 15, y + 4, 2 * scale, 2 * scale);
+  ctx.fillRect(x - 15 * scale, y - 35, 30 * scale, 3 * scale);
+  ctx.fillRect(x - 12 * scale, y - 45, 24 * scale, 12 * scale);
+  ctx.fillStyle = '#FF0000';
+  ctx.fillRect(x - 12 * scale, y - 43, 24 * scale, 2 * scale);
 }
 
 function draw3DChica(x, y, scale) {
   const scaledSize = 80 * scale;
   
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(x - scaledSize/2 + 10, y + scaledSize + 10, scaledSize, 20);
+  // Enhanced shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + scaledSize + 15, scaledSize * 0.6, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
   
-  // Chica body with gradient
-  const chicaGradient = ctx.createLinearGradient(x - scaledSize/2, y, x + scaledSize/2, y + scaledSize);
-  chicaGradient.addColorStop(0, '#aa0');
-  chicaGradient.addColorStop(1, '#660');
-  ctx.fillStyle = chicaGradient;
-  ctx.fillRect(x - scaledSize/2, y, scaledSize, scaledSize);
+  // Chica body with detailed gradient
+  const bodyGradient = ctx.createLinearGradient(x - scaledSize/2, y, x + scaledSize/2, y + scaledSize);
+  bodyGradient.addColorStop(0, '#FFD700');
+  bodyGradient.addColorStop(0.3, '#FFA500');
+  bodyGradient.addColorStop(0.7, '#FF8C00');
+  bodyGradient.addColorStop(1, '#FF6347');
+  ctx.fillStyle = bodyGradient;
   
-  // Chica features
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x - 20, y + 20, 8 * scale, 8 * scale);
-  ctx.fillRect(x + 12, y + 20, 8 * scale, 8 * scale);
-  ctx.fillStyle = '#FFA500';
-  ctx.fillRect(x - 15, y + 35, 30 * scale, 4 * scale);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x - 20, y + 45, 40 * scale, 20 * scale);
+  // Main body with rounded shape
+  ctx.beginPath();
+  ctx.roundRect(x - scaledSize/2, y + 10, scaledSize, scaledSize - 10, 15 * scale);
+  ctx.fill();
   
-  // Cupcake
-  ctx.fillStyle = '#FF69B4';
-  ctx.fillRect(x + 30, y - 10, 25 * scale, 25 * scale);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x + 35, y - 5, 15 * scale, 15 * scale);
+  // Chest bib
+  ctx.fillStyle = '#FFF';
+  ctx.beginPath();
+  ctx.moveTo(x - scaledSize/2 + 10, y + 25);
+  ctx.lineTo(x + scaledSize/2 - 10, y + 25);
+  ctx.lineTo(x + scaledSize/2 - 15, y + 55);
+  ctx.lineTo(x - scaledSize/2 + 15, y + 55);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Bib text "LET'S EAT!!!"
   ctx.fillStyle = '#FF0000';
-  ctx.fillRect(x + 40, y - 15, 5 * scale, 8 * scale);
-  ctx.fillStyle = '#FFD700';
-  for(let i = 0; i < 3; i++) {
-    ctx.fillRect(x + 38 + i*5, y - 2, 2 * scale, 2 * scale);
+  ctx.font = `bold ${8 * scale}px sans-serif`;
+  ctx.fillText("LET'S", x - 20 * scale, y + 40);
+  ctx.fillText("EAT!!!", x - 18 * scale, y + 50);
+  
+  // Belly patch
+  ctx.fillStyle = '#FFF8DC';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 50, 18 * scale, 12 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head with chicken features and endoskeleton mask
+  const headGradient = ctx.createLinearGradient(x - 25 * scale, y - 20, x + 25 * scale, y + 20);
+  headGradient.addColorStop(0, '#FFD700');
+  headGradient.addColorStop(1, '#FFA500');
+  ctx.fillStyle = headGradient;
+  ctx.beginPath();
+  ctx.arc(x, y + 10, 23 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Endoskeleton mask seams
+  ctx.strokeStyle = '#CC6600';
+  ctx.lineWidth = 1;
+  // Vertical seam
+  ctx.beginPath();
+  ctx.moveTo(x, y - 10);
+  ctx.lineTo(x, y + 30);
+  ctx.stroke();
+  // Horizontal seam
+  ctx.beginPath();
+  ctx.moveTo(x - 18 * scale, y + 10);
+  ctx.lineTo(x + 18 * scale, y + 10);
+  ctx.stroke();
+  
+  // Jaw separation line
+  ctx.strokeStyle = '#FF8C00';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - 15 * scale, y + 25);
+  ctx.lineTo(x + 15 * scale, y + 25);
+  ctx.stroke();
+  
+  // Chicken comb
+  ctx.fillStyle = '#FF0000';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 10);
+  ctx.lineTo(x - 8 * scale, y - 25);
+  ctx.lineTo(x - 4 * scale, y - 15);
+  ctx.lineTo(x, y - 20);
+  ctx.lineTo(x + 4 * scale, y - 15);
+  ctx.lineTo(x + 8 * scale, y - 25);
+  ctx.lineTo(x, y - 10);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Eyes with purple glow
+  ctx.fillStyle = '#9400D3';
+  ctx.beginPath();
+  ctx.arc(x - 10 * scale, y + 10, 5 * scale, 0, Math.PI * 2);
+  ctx.arc(x + 10 * scale, y + 10, 5 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye highlights
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(x - 9 * scale, y + 9, 2 * scale, 0, Math.PI * 2);
+  ctx.arc(x + 11 * scale, y + 9, 2 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Beak
+  ctx.fillStyle = '#FFA500';
+  ctx.beginPath();
+  ctx.moveTo(x, y + 18);
+  ctx.lineTo(x - 8 * scale, y + 25);
+  ctx.lineTo(x + 8 * scale, y + 25);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Enhanced Mr. Cupcake with extreme detail
+  const cupcakeX = x + 35 * scale;
+  const cupcakeY = y - 5;
+  
+  // Cupcake wrapper with pleated detail
+  const wrapperGradient = ctx.createLinearGradient(cupcakeX - 15, cupcakeY, cupcakeX + 15, cupcakeY);
+  wrapperGradient.addColorStop(0, '#FF1493');
+  wrapperGradient.addColorStop(0.3, '#FF69B4');
+  wrapperGradient.addColorStop(0.7, '#FFB6C1');
+  wrapperGradient.addColorStop(1, '#C71585');
+  ctx.fillStyle = wrapperGradient;
+  
+  // Pleated wrapper shape
+  ctx.beginPath();
+  ctx.moveTo(cupcakeX - 15, cupcakeY + 20);
+  for(let i = 0; i < 6; i++) {
+    const pleatX = cupcakeX - 15 + i * 5;
+    const pleatDepth = i % 2 === 0 ? 3 : 0;
+    ctx.lineTo(pleatX, cupcakeY + pleatDepth);
+  }
+  ctx.lineTo(cupcakeX + 15, cupcakeY + 20);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Wrapper folds detail
+  ctx.strokeStyle = '#C71585';
+  ctx.lineWidth = 1;
+  for(let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cupcakeX - 12 + i * 6, cupcakeY);
+    ctx.lineTo(cupcakeX - 12 + i * 6, cupcakeY + 18);
+    ctx.stroke();
+  }
+  
+  // Multi-layered frosting
+  // Base frosting layer
+  const frostingGradient = ctx.createRadialGradient(cupcakeX, cupcakeY, 0, cupcakeX, cupcakeY, 15);
+  frostingGradient.addColorStop(0, '#FFFFFF');
+  frostingGradient.addColorStop(0.3, '#FFB6C1');
+  frostingGradient.addColorStop(0.7, '#FF69B4');
+  frostingGradient.addColorStop(1, '#FF1493');
+  ctx.fillStyle = frostingGradient;
+  ctx.beginPath();
+  ctx.arc(cupcakeX, cupcakeY, 15, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Frosting swirls
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cupcakeX, cupcakeY, 8, 0, Math.PI * 1.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cupcakeX + 5, cupcakeY - 3, 4, Math.PI * 0.5, Math.PI * 1.5);
+  ctx.stroke();
+  
+  // Detailed cherry with stem
+  // Cherry stem
+  ctx.strokeStyle = '#228B22';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cupcakeX, cupcakeY - 12);
+  ctx.quadraticCurveTo(cupcakeX + 3, cupcakeY - 15, cupcakeX + 5, cupcakeY - 12);
+  ctx.stroke();
+  
+  // Cherry with gradient
+  const cherryGradient = ctx.createRadialGradient(cupcakeX, cupcakeY - 8, 0, cupcakeX, cupcakeY - 8, 6);
+  cherryGradient.addColorStop(0, '#FF6B6B');
+  cherryGradient.addColorStop(0.7, '#FF0000');
+  cherryGradient.addColorStop(1, '#8B0000');
+  ctx.fillStyle = cherryGradient;
+  ctx.beginPath();
+  ctx.arc(cupcakeX, cupcakeY - 8, 6, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Cherry highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath();
+  ctx.arc(cupcakeX - 2, cupcakeY - 9, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Endoskeleton-like mechanical eyes
+  // Eye sockets
+  ctx.fillStyle = '#2C2C2C';
+  ctx.beginPath();
+  ctx.ellipse(cupcakeX - 6, cupcakeY - 2, 4, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cupcakeX + 6, cupcakeY - 2, 4, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Glowing red eyes
+  ctx.fillStyle = '#FF0000';
+  ctx.beginPath();
+  ctx.arc(cupcakeX - 6, cupcakeY - 2, 2.5, 0, Math.PI * 2);
+  ctx.arc(cupcakeX + 6, cupcakeY - 2, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye glow effect
+  ctx.fillStyle = 'rgba(255,0,0,0.3)';
+  ctx.beginPath();
+  ctx.arc(cupcakeX - 6, cupcakeY - 2, 4, 0, Math.PI * 2);
+  ctx.arc(cupcakeX + 6, cupcakeY - 2, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Mechanical teeth with endoskeleton detail
+  ctx.fillStyle = '#E5E5E5';
+  // Top teeth row
+  for(let i = 0; i < 5; i++) {
+    const toothX = cupcakeX - 8 + i * 4;
+    const toothHeight = 3 + Math.random() * 2;
+    ctx.fillRect(toothX, cupcakeY + 2, 2.5, toothHeight);
+    // Tooth detail line
+    ctx.fillStyle = '#C0C0C0';
+    ctx.fillRect(toothX + 0.5, cupcakeY + 3, 1.5, 1);
+    ctx.fillStyle = '#E5E5E5';
+  }
+  
+  // Bottom teeth row
+  for(let i = 0; i < 4; i++) {
+    const toothX = cupcakeX - 6 + i * 4;
+    ctx.fillRect(toothX, cupcakeY + 6, 2.5, 2.5);
+  }
+  
+  // Jaw mechanism visible
+  ctx.fillStyle = '#4A4A4A';
+  ctx.fillRect(cupcakeX - 10, cupcakeY + 8, 20, 3);
+  
+  // Sprinkles on frosting
+  const sprinkleColors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF'];
+  for(let i = 0; i < 8; i++) {
+    const sprinkleX = cupcakeX - 10 + Math.random() * 20;
+    const sprinkleY = cupcakeY - 8 + Math.random() * 12;
+    const sprinkleColor = sprinkleColors[Math.floor(Math.random() * sprinkleColors.length)];
+    ctx.fillStyle = sprinkleColor;
+    ctx.save();
+    ctx.translate(sprinkleX, sprinkleY);
+    ctx.rotate(Math.random() * Math.PI);
+    ctx.fillRect(-2, -0.5, 4, 1);
+    ctx.restore();
   }
 }
 
 function draw3DFoxy(x, y, scale, state) {
   const scaledSize = 100 * scale;
   
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(x - scaledSize/2 + 10, y + scaledSize + 10, scaledSize, 20);
-  
-  // Foxy body with gradient
-  const foxyGradient = ctx.createLinearGradient(x - scaledSize/2, y, x + scaledSize/2, y + scaledSize);
-  foxyGradient.addColorStop(0, '#f90');
-  foxyGradient.addColorStop(1, '#c60');
-  ctx.fillStyle = foxyGradient;
-  ctx.fillRect(x - scaledSize/2, y, scaledSize, scaledSize);
-  
-  // Foxy features
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x - 20, y + 30, 8 * scale, 8 * scale);
-  ctx.fillRect(x + 12, y + 30, 8 * scale, 8 * scale);
-  ctx.fillStyle = '#FFD700';
-  ctx.fillRect(x - 15, y + 45, 30 * scale, 4 * scale);
-  
-  // Eyepatch
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x - 10, y + 20, 30 * scale, 20 * scale);
-  ctx.strokeStyle = '#444';
-  ctx.lineWidth = 2;
+  // Enhanced shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath();
-  ctx.moveTo(x - 10, y + 30);
-  ctx.lineTo(x + 20, y + 30);
+  ctx.ellipse(x, y + scaledSize + 15, scaledSize * 0.6, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Foxy body with detailed gradient
+  const bodyGradient = ctx.createLinearGradient(x - scaledSize/2, y, x + scaledSize/2, y + scaledSize);
+  bodyGradient.addColorStop(0, '#FF8C00');
+  bodyGradient.addColorStop(0.3, '#FF6347');
+  bodyGradient.addColorStop(0.7, '#CD5C5C');
+  bodyGradient.addColorStop(1, '#8B4513');
+  ctx.fillStyle = bodyGradient;
+  
+  // Main body with fox shape (taller and thinner)
+  ctx.beginPath();
+  ctx.roundRect(x - scaledSize/2 + 5, y + 10, scaledSize - 10, scaledSize - 10, 12 * scale);
+  ctx.fill();
+  
+  // Chest patch (lighter color)
+  ctx.fillStyle = '#FFA07A';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 40, 15 * scale, 20 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head with fox features and endoskeleton mask
+  const headGradient = ctx.createLinearGradient(x - 25 * scale, y - 20, x + 25 * scale, y + 20);
+  headGradient.addColorStop(0, '#FF8C00');
+  headGradient.addColorStop(1, '#FF6347');
+  ctx.fillStyle = headGradient;
+  ctx.beginPath();
+  ctx.arc(x, y + 10, 22 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Endoskeleton mask seams (visible under damaged areas)
+  ctx.strokeStyle = '#CD5C5C';
+  ctx.lineWidth = 1;
+  // Vertical seam
+  ctx.beginPath();
+  ctx.moveTo(x, y - 10);
+  ctx.lineTo(x, y + 30);
+  ctx.stroke();
+  // Horizontal seam
+  ctx.beginPath();
+  ctx.moveTo(x - 18 * scale, y + 10);
+  ctx.lineTo(x + 18 * scale, y + 10);
   ctx.stroke();
   
-  // Hook
-  if (state === 'peek') {
-    ctx.fillStyle = '#C0C0C0';
-    ctx.fillRect(x + 40, y + 40, 8 * scale, 20 * scale);
-    ctx.fillRect(x + 36, y + 60, 16 * scale, 4 * scale);
-  }
+  // Jaw separation line
+  ctx.strokeStyle = '#FFA07A';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - 15 * scale, y + 25);
+  ctx.lineTo(x + 15 * scale, y + 25);
+  ctx.stroke();
   
-  // Ears
-  ctx.fillStyle = '#f90';
-  ctx.fillRect(x - 25, y + 10, 15 * scale, 20 * scale);
-  ctx.fillRect(x + 10, y + 10, 15 * scale, 20 * scale);
+  // Fox ears (pointed)
+  ctx.fillStyle = '#FF6347';
+  // Left ear
+  ctx.beginPath();
+  ctx.moveTo(x - 18 * scale, y - 5);
+  ctx.lineTo(x - 25 * scale, y - 25);
+  ctx.lineTo(x - 10 * scale, y - 15);
+  ctx.closePath();
+  ctx.fill();
+  // Right ear
+  ctx.beginPath();
+  ctx.moveTo(x + 18 * scale, y - 5);
+  ctx.lineTo(x + 25 * scale, y - 25);
+  ctx.lineTo(x + 10 * scale, y - 15);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Inner ear details
+  ctx.fillStyle = '#FFB6C1';
+  ctx.beginPath();
+  ctx.moveTo(x - 16 * scale, y - 8);
+  ctx.lineTo(x - 20 * scale, y - 20);
+  ctx.lineTo(x - 12 * scale, y - 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 16 * scale, y - 8);
+  ctx.lineTo(x + 20 * scale, y - 20);
+  ctx.lineTo(x + 12 * scale, y - 12);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Eyepatch (over right eye)
   ctx.fillStyle = '#000';
-  ctx.fillRect(x - 20, y + 15, 5 * scale, 10 * scale);
-  ctx.fillRect(x + 15, y + 15, 5 * scale, 10 * scale);
+  ctx.beginPath();
+  ctx.ellipse(x + 10 * scale, y + 10, 12 * scale, 8 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyepatch strap
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3 * scale;
+  ctx.beginPath();
+  ctx.moveTo(x - 2 * scale, y + 5);
+  ctx.lineTo(x + 22 * scale, y + 5);
+  ctx.stroke();
+  
+  // Left eye (yellow and menacing)
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(x - 10 * scale, y + 10, 6 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye pupil
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(x - 10 * scale, y + 10, 3 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(x - 9 * scale, y + 9, 2 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Snout (longer fox snout)
+  ctx.fillStyle = '#FFA07A';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 22, 6 * scale, 8 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Nose
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(x, y + 20, 2 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Enhanced hook hand
+  const hookGradient = ctx.createLinearGradient(x + 35 * scale, y + 35, x + 45 * scale, y + 65);
+  hookGradient.addColorStop(0, '#C0C0C0');
+  hookGradient.addColorStop(0.5, '#A9A9A9');
+  hookGradient.addColorStop(1, '#808080');
+  ctx.fillStyle = hookGradient;
+  
+  // Hook shape
+  ctx.beginPath();
+  ctx.moveTo(x + 40 * scale, y + 40);
+  ctx.lineTo(x + 42 * scale, y + 60);
+  ctx.lineTo(x + 38 * scale, y + 65);
+  ctx.lineTo(x + 35 * scale, y + 62);
+  ctx.lineTo(x + 37 * scale, y + 45);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Hook shine
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath();
+  ctx.moveTo(x + 38 * scale, y + 42);
+  ctx.lineTo(x + 39 * scale, y + 55);
+  ctx.lineTo(x + 37 * scale, y + 56);
+  ctx.lineTo(x + 36 * scale, y + 45);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Pirate bandana
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.moveTo(x - 20 * scale, y - 5);
+  ctx.lineTo(x + 20 * scale, y - 5);
+  ctx.lineTo(x + 15 * scale, y + 5);
+  ctx.lineTo(x - 15 * scale, y + 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Torn pants/shorts
+  ctx.fillStyle = '#4B0082';
+  ctx.fillRect(x - scaledSize/2 + 8, y + 60, scaledSize - 16, 20 * scale);
+  
+  // Torn edges
+  ctx.fillStyle = '#8B4513';
+  for(let i = 0; i < 5; i++) {
+    const tearX = x - scaledSize/2 + 10 + i * 15;
+    const tearHeight = Math.random() * 5 + 2;
+    ctx.fillRect(tearX, y + 75 + Math.random() * 5, 8 * scale, tearHeight);
+  }
 }
 
 function drawOffice3D() {
+  const ctx = window.gameCtx;
   // Update mouse position for smooth movement
   updateMousePosition();
   const offset = getParallaxOffset();
@@ -1048,52 +1691,28 @@ function drawOffice3D() {
     wallLight.addColorStop(1, 'rgba(255,255,0,0)');
     ctx.fillStyle = wallLight;
     ctx.fillRect(40, 240, 100, 120);
-    
-    if (animatronics.bonnie.position === 4 && !gameState.leftDoor) {
+  }
+  
+  // Check for Bonnie at window (regardless of light state)
+  if (animatronics.bonnie.position === 4 && !gameState.leftDoor) {
       // Bonnie with 3D shadow and parallax
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.fillRect(50 - offset.x * 0.3, 175 - offset.y * 0.3, 90, 200);
       
-      ctx.fillStyle = '#4B0082';
-      ctx.fillRect(45 - offset.x * 0.3, 170 - offset.y * 0.3, 90, 200);
-      // Bonnie's features
-      ctx.fillStyle = '#000';
-      ctx.fillRect(60 - offset.x * 0.3, 190 - offset.y * 0.3, 6, 6);
-      ctx.fillRect(114 - offset.x * 0.3, 190 - offset.y * 0.3, 6, 6);
-      ctx.fillStyle = '#FF69B4';
-      ctx.fillRect(68 - offset.x * 0.3, 205 - offset.y * 0.3, 20, 3);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(65 - offset.x * 0.3, 215 - offset.y * 0.3, 30, 15);
-      // Bonnie's mask
-      ctx.fillStyle = '#4B0082';
-      ctx.fillRect(55 - offset.x * 0.3, 150 - offset.y * 0.3, 60, 25);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(70 - offset.x * 0.3, 155 - offset.y * 0.3, 6, 6);
-      ctx.fillRect(92 - offset.x * 0.3, 155 - offset.y * 0.3, 6, 6);
-      ctx.fillStyle = '#FF1493';
-      ctx.fillRect(65 - offset.x * 0.3, 145 - offset.y * 0.3, 6, 6);
-      ctx.fillRect(97 - offset.x * 0.3, 145 - offset.y * 0.3, 6, 6);
-      // Bonnie's guitar
-      ctx.fillStyle = '#8B4513';
-      ctx.fillRect(55 - offset.x * 0.3, 280 - offset.y * 0.3, 35, 8);
-      ctx.fillStyle = '#654321';
-      ctx.fillRect(70 - offset.x * 0.3, 220 - offset.y * 0.3, 6, 25);
-      ctx.fillStyle = '#C0C0C0';
-      ctx.fillRect(71 - offset.x * 0.3, 222 - offset.y * 0.3, 4, 6);
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(72 - offset.x * 0.3, 224 - offset.y * 0.3, 1, 1);
-      ctx.fillRect(74 - offset.x * 0.3, 224 - offset.y * 0.3, 1, 1);
-      ctx.fillStyle = '#000';
-      for(let i = 0; i < 6; i++) {
-        ctx.fillRect(58 - offset.x * 0.3 + i*5, 281 - offset.y * 0.3, 1, 4);
-      }
-      ctx.fillStyle = '#000';
-      ctx.fillRect(70 - offset.x * 0.3, 283 - offset.y * 0.3, 6, 2);
+      // Draw Bonnie sprite
+      drawAnimatronicSprite(
+        animatronicImages.bonnie,
+        45 - offset.x * 0.3,
+        170 - offset.y * 0.3,
+        90,
+        200
+      );
+      
+      // Warning text
       ctx.fillStyle = '#f00';
-      ctx.font = 'bold 22px monospace';
+      ctx.font = 'bold 16px monospace';
       ctx.fillText('BONNIE!', 55 - offset.x * 0.3, 260 - offset.y * 0.3);
-    }
-  } else {
+    } else {
     // Dark window with depth
     const windowGradient = ctx.createLinearGradient(40, 160, 40, 400);
     windowGradient.addColorStop(0, 'rgba(0,20,40,0.9)');
@@ -1103,7 +1722,7 @@ function drawOffice3D() {
   }
   
   // Draw 3D door
-  draw3DDoor(10, 150, 140, 300, gameState.leftDoor);
+  draw3DDoor(10, 150, 140, 300, gameState.leftDoor, 'left');
   
   // RIGHT SIDE - Window, Light, and Door
   // Draw warning window first
@@ -1156,30 +1775,14 @@ function drawOffice3D() {
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.fillRect(665 - offset.x * 0.3, 175 - offset.y * 0.3, 110, 220);
       
-      ctx.fillStyle = '#aa0';
-      ctx.fillRect(660 - offset.x * 0.3, 170 - offset.y * 0.3, 110, 220);
-      // Chica's features
-      ctx.fillStyle = '#000';
-      ctx.fillRect(675 - offset.x * 0.3, 190 - offset.y * 0.3, 6, 6);
-      ctx.fillRect(749 - offset.x * 0.3, 190 - offset.y * 0.3, 6, 6);
-      ctx.fillStyle = '#FFA500';
-      ctx.fillRect(683 - offset.x * 0.3, 205 - offset.y * 0.3, 20, 3);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(680 - offset.x * 0.3, 215 - offset.y * 0.3, 30, 15);
-      // Chica's cupcake
-      ctx.fillStyle = '#FF69B4';
-      ctx.fillRect(710 - offset.x * 0.3, 140 - offset.y * 0.3, 20, 20);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(714 - offset.x * 0.3, 144 - offset.y * 0.3, 12, 12);
-      ctx.fillStyle = '#FF0000';
-      ctx.fillRect(718 - offset.x * 0.3, 136 - offset.y * 0.3, 4, 6);
-      ctx.fillStyle = '#FFD700';
-      for(let i = 0; i < 2; i++) {
-        ctx.fillRect(716 - offset.x * 0.3 + i*4, 146 - offset.y * 0.3, 1, 1);
-      }
-      ctx.fillStyle = '#f00';
-      ctx.font = 'bold 22px monospace';
-      ctx.fillText('CHICA!', 670 - offset.x * 0.3, 280 - offset.y * 0.3);
+      // Draw Chica sprite
+      drawAnimatronicSprite(
+        animatronicImages.chica,
+        660 - offset.x * 0.3,
+        170 - offset.y * 0.3,
+        110,
+        220
+      );
     }
   } else {
     // Dark window with depth
@@ -1191,7 +1794,7 @@ function drawOffice3D() {
   }
   
   // Draw 3D door
-  draw3DDoor(650, 150, 140, 300, gameState.rightDoor);
+  draw3DDoor(650, 150, 140, 300, gameState.rightDoor, 'right');
   
   // Add ambient lighting
   const ambientGradient = ctx.createRadialGradient(400 - offset.x * 0.1, 300 - offset.y * 0.1, 0, 400 - offset.x * 0.1, 300 - offset.y * 0.1, 300);
@@ -1257,6 +1860,48 @@ function drawRightWarningWindow() {
   }
 }
 
+function updateDoorAnimations() {
+  // Update left door animation
+  const leftAnim = doorAnimation.leftDoor;
+  if (leftAnim.animating) {
+    if (leftAnim.target === 1) {
+      // Closing - slam from above
+      leftAnim.position = Math.min(1, leftAnim.position + leftAnim.speed);
+      if (leftAnim.position >= 1) {
+        leftAnim.position = 1;
+        leftAnim.animating = false;
+      }
+    } else {
+      // Opening - reverse animation
+      leftAnim.position = Math.max(0, leftAnim.position - leftAnim.speed * 0.5);
+      if (leftAnim.position <= 0) {
+        leftAnim.position = 0;
+        leftAnim.animating = false;
+      }
+    }
+  }
+  
+  // Update right door animation
+  const rightAnim = doorAnimation.rightDoor;
+  if (rightAnim.animating) {
+    if (rightAnim.target === 1) {
+      // Closing - slam from above
+      rightAnim.position = Math.min(1, rightAnim.position + rightAnim.speed);
+      if (rightAnim.position >= 1) {
+        rightAnim.position = 1;
+        rightAnim.animating = false;
+      }
+    } else {
+      // Opening - reverse animation
+      rightAnim.position = Math.max(0, rightAnim.position - rightAnim.speed * 0.5);
+      if (rightAnim.position <= 0) {
+        rightAnim.position = 0;
+        rightAnim.animating = false;
+      }
+    }
+  }
+}
+
 function updateGame(dt) {
   if (gameState.gameOver) return;
   
@@ -1266,15 +1911,20 @@ function updateGame(dt) {
   const gameHours = Math.floor(gameState.time / 60) + 12;
   const displayHour = gameHours % 12 || 12;
   const displayMinute = Math.floor(gameState.time % 60);
-  document.getElementById('time').textContent = 
-    `${displayHour}:${displayMinute.toString().padStart(2, '0')} AM`;
+  const timeElement = safeGetElement('time');
+  if (timeElement) {
+    timeElement.textContent = `${displayHour}:${displayMinute.toString().padStart(2, '0')} AM`;
+  }
   
   if (gameState.time >= 360) {
     alert(`Survived Night ${gameState.night}!`);
     gameState.night++;
     gameStartTime = Date.now();
     resetNight();
-    document.getElementById('night').textContent = `Night ${gameState.night}`;
+    const nightElement = safeGetElement('night');
+    if (nightElement) {
+      nightElement.textContent = `Night ${gameState.night}`;
+    }
     return;
   }
   
@@ -1289,12 +1939,16 @@ function updateGame(dt) {
   const drainThisFrame = drainPerSecond * (dt / 1000) * 100;
   
   gameState.power = Math.max(0, gameState.power - drainThisFrame);
-  document.getElementById('powerPercent').textContent = Math.floor(gameState.power);
+  const powerElement = safeGetElement('powerPercent');
+  if (powerElement) {
+    powerElement.textContent = Math.floor(gameState.power);
+  }
   
   if (gameState.power <= 0 && !gameState.gameOver) {
     jumpscare('POWER OUT!');
   }
   
+  updateDoorAnimations();
   updateAnimatronics();
 }
 
@@ -1310,6 +1964,7 @@ function updateAnimatronics() {
 }
 
 function jumpscare(name) {
+  const ctx = window.gameCtx;
   ctx.fillStyle = '#f00';
   ctx.fillRect(0, 0, 800, 600);
   ctx.fillStyle = '#fff';
@@ -1318,7 +1973,10 @@ function jumpscare(name) {
   ctx.fillText(name, 400, 300);
   ctx.textAlign = 'left';
   gameState.gameOver = true;
-  document.getElementById('gameOver').style.display = 'block';
+  const gameOverElement = safeGetElement('gameOver');
+  if (gameOverElement) {
+    gameOverElement.style.display = 'block';
+  }
 }
 
 function resetNight() {
@@ -1328,15 +1986,40 @@ function resetNight() {
   gameState.power = 100;
 }
 
-// All your existing button handlers (unchanged)
-document.getElementById('leftLight').onclick = () => gameState.leftLight = !gameState.leftLight;
-document.getElementById('rightLight').onclick = () => gameState.rightLight = !gameState.rightLight;
-document.getElementById('leftDoor').onclick = () => gameState.leftDoor = !gameState.leftDoor;
-document.getElementById('rightDoor').onclick = () => gameState.rightDoor = !gameState.rightDoor;
-document.getElementById('cameraBtn').onclick = () => {
+// All your existing button handlers with safe element access
+const leftLightBtn = safeGetElement('leftLight');
+const rightLightBtn = safeGetElement('rightLight');
+if (leftLightBtn) leftLightBtn.onclick = () => gameState.leftLight = !gameState.leftLight;
+if (rightLightBtn) rightLightBtn.onclick = () => gameState.rightLight = !gameState.rightLight;
+const leftDoorBtn = safeGetElement('leftDoor');
+const rightDoorBtn = safeGetElement('rightDoor');
+const cameraBtn = safeGetElement('cameraBtn');
+const cameraControls = safeGetElement('cameraControls');
+
+if (leftDoorBtn) leftDoorBtn.onclick = () => {
+  gameState.leftDoor = !gameState.leftDoor;
+  const leftAnim = doorAnimation.leftDoor;
+  leftAnim.target = gameState.leftDoor ? 1 : 0;
+  leftAnim.animating = true;
+  if (gameState.leftDoor && leftAnim.position === 0) {
+    leftAnim.position = 0; // Start from top for slam effect
+  }
+};
+
+if (rightDoorBtn) rightDoorBtn.onclick = () => {
+  gameState.rightDoor = !gameState.rightDoor;
+  const rightAnim = doorAnimation.rightDoor;
+  rightAnim.target = gameState.rightDoor ? 1 : 0;
+  rightAnim.animating = true;
+  if (gameState.rightDoor && rightAnim.position === 0) {
+    rightAnim.position = 0; // Start from top for slam effect
+  }
+};
+
+if (cameraBtn) cameraBtn.onclick = () => {
   gameState.inCamera = !gameState.inCamera;
-  document.getElementById('cameraBtn').classList.toggle('active', gameState.inCamera);
-  document.getElementById('cameraControls').style.display = gameState.inCamera ? 'flex' : 'none';
+  cameraBtn.classList.toggle('active', gameState.inCamera);
+  if (cameraControls) cameraControls.style.display = gameState.inCamera ? 'flex' : 'none';
   if (gameState.inCamera && !gameState.currentCamera) {
     gameState.currentCamera = 1; // Only set camera when turning on
   }
@@ -1356,8 +2039,8 @@ document.querySelectorAll('.camBtn').forEach(btn => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && gameState.inCamera) {
     gameState.inCamera = false;
-    document.getElementById('cameraBtn').classList.remove('active');
-    document.getElementById('cameraControls').style.display = 'none';
+    if (cameraBtn) cameraBtn.classList.remove('active');
+    if (cameraControls) cameraControls.style.display = 'none';
   } else if (!gameState.inCamera || gameState.gameOver) return;
   const cam = parseInt(e.key);
   if (cam >= 1 && cam <= 9) {
@@ -1376,10 +2059,12 @@ function restartGame() {
   Object.assign(gameState, {power:100, time:0, night:1, inCamera:false, leftLight:false, rightLight:false, leftDoor:false, rightDoor:false, gameOver:false, currentCamera:1});
   gameStartTime = Date.now();
   resetNight();
-  document.getElementById('gameOver').style.display = 'none';
-  document.getElementById('cameraBtn').classList.remove('active');
-  document.getElementById('cameraControls').style.display = 'none';
-  document.getElementById('night').textContent = `Night ${gameState.night}`;
+  const gameOverElement = safeGetElement('gameOver');
+  if (gameOverElement) gameOverElement.style.display = 'none';
+  if (cameraBtn) cameraBtn.classList.remove('active');
+  if (cameraControls) cameraControls.style.display = 'none';
+  const nightElement = safeGetElement('night');
+  if (nightElement) nightElement.textContent = `Night ${gameState.night}`;
   updateCameraButtons();
 }
 
@@ -1428,53 +2113,6 @@ function draw3DFreddyCamera(x, y, scale) {
   ctx.fillRect(x + 10, y - 20, 80 * scale, 25 * scale);
   ctx.fillStyle = '#8B4513';
   ctx.fillRect(x + 15, y - 15, 70 * scale, 15 * scale);
-}
-
-function draw3DBonnieCamera(x, y, scale) {
-  // Bonnie with camera lighting
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(x - 10, y - 10, 110 * scale, 190 * scale);
-  
-  ctx.fillStyle = '#4B0082';
-  ctx.fillRect(x, y, 90 * scale, 170 * scale);
-  
-  // Bonnie's features with camera darkness
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x + 15, y + 30, 6 * scale, 6 * scale);
-  ctx.fillRect(x + 69, y + 30, 6 * scale, 6 * scale);
-  
-  ctx.fillStyle = '#FF69B4';
-  ctx.fillRect(x + 20, y + 50, 50 * scale, 3 * scale);
-  
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x + 18, y + 60, 54 * scale, 20 * scale);
-  
-  // Bonnie's mask
-  ctx.fillStyle = '#4B0082';
-  ctx.fillRect(x + 5, y - 15, 80 * scale, 20 * scale);
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x + 20, y - 10, 6 * scale, 6 * scale);
-  ctx.fillRect(x + 64, y - 10, 6 * scale, 6 * scale);
-  ctx.fillStyle = '#FF1493';
-  ctx.fillRect(x + 15, y - 20, 6 * scale, 6 * scale);
-  ctx.fillRect(x + 69, y - 20, 6 * scale, 6 * scale);
-  
-  // Bonnie's guitar
-  ctx.fillStyle = '#8B4513';
-  ctx.fillRect(x + 5, y + 120, 35 * scale, 8 * scale);
-  ctx.fillStyle = '#654321';
-  ctx.fillRect(x + 20, y + 60, 6 * scale, 25 * scale);
-  ctx.fillStyle = '#C0C0C0';
-  ctx.fillRect(x + 21, y + 62, 4 * scale, 6 * scale);
-  ctx.fillStyle = '#FFD700';
-  ctx.fillRect(x + 22, y + 64, 1 * scale, 1 * scale);
-  ctx.fillRect(x + 24, y + 64, 1 * scale, 1 * scale);
-  ctx.fillStyle = '#000';
-  for(let i = 0; i < 6; i++) {
-    ctx.fillRect(x + 8 + i*5, y + 121, 1 * scale, 4 * scale);
-  }
-  ctx.fillStyle = '#000';
-  ctx.fillRect(x + 20, y + 123, 6 * scale, 2 * scale);
 }
 
 function draw3DChicaCamera(x, y, scale) {
@@ -1688,7 +2326,14 @@ function drawWestHallCorner3D() {
   ctx.fillRect(420, 170, 160, 160);
   
   if (animatronics.bonnie.position === 3) {
-    draw3DBonnieCamera(550, 300, 1.2);
+    // Bonnie in West Hall Corner - using PNG sprite
+    drawAnimatronicSprite(
+      animatronicImages.bonnie,
+      550,
+      300,
+      80 * 1.2,
+      120 * 1.2
+    );
   }
   
   ctx.restore();
@@ -1813,18 +2458,20 @@ function drawPirateCove3D() {
   
   if (animatronics.foxy.position === 0) {
     // Foxy peeking out
-    ctx.fillStyle = '#8B0000';
-    ctx.fillRect(380, 300, 60, 80);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(390, 320, 10, 10);
-    ctx.fillRect(420, 320, 10, 10);
+    drawAnimatronicSprite(
+      animatronicImages.foxy,
+      380,
+      300,
+      60,
+      80
+    );
   } else if (animatronics.foxy.position === 2) {
-    // Open curtain
+    // Open curtain - Foxy is gone!
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(280, 250, 240, 230);
-    ctx.fillStyle = 'rgba(0,255,0,0.5)';
+    ctx.fillStyle = 'rgba(255,0,0,0.5)';
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('CURTAIN OPEN!', 320, 350);
+    ctx.fillText('FOXY IS GONE!', 320, 350);
   }
   
   ctx.restore();
@@ -1863,7 +2510,14 @@ function drawWestHall3D() {
   }
   
   if (animatronics.bonnie.position === 2) {
-    draw3DBonnieCamera(300, 280, 0.8);
+    // Bonnie in West Hall - using PNG sprite
+    drawAnimatronicSprite(
+      animatronicImages.bonnie,
+      300,
+      280,
+      80 * 0.8,
+      120 * 0.8
+    );
   }
   
   ctx.restore();
@@ -2289,7 +2943,14 @@ function drawBackstage3D() {
   ctx.fillRect(350, 100, 100, 100);
   
   if (animatronics.bonnie.position === 1) {
-    draw3DBonnieCamera(300, 250, 0.9);
+    // Bonnie in Backstage - using PNG sprite
+    drawAnimatronicSprite(
+      animatronicImages.bonnie,
+      300,
+      250,
+      80 * 0.9,
+      120 * 0.9
+    );
   }
   
   ctx.restore();
@@ -2309,5 +2970,18 @@ function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
 }
 
+// Initialize UI after DOM is ready
 document.getElementById('night').textContent = `Night ${gameState.night}`;
+
+// Check image loading status after a delay
+setTimeout(() => {
+  console.log('=== IMAGE LOADING STATUS ===');
+  console.log('Freddy:', imageLoadStatus.freddy ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.freddy.width + 'x' + animatronicImages.freddy.height);
+  console.log('Bonnie:', imageLoadStatus.bonnie ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.bonnie.width + 'x' + animatronicImages.bonnie.height);
+  console.log('Chica:', imageLoadStatus.chica ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.chica.width + 'x' + animatronicImages.chica.height);
+  console.log('Foxy:', imageLoadStatus.foxy ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.foxy.width + 'x' + animatronicImages.foxy.height);
+  console.log('==========================');
+}, 2000);
+
+// Start the game loop
 requestAnimationFrame(gameLoop);
