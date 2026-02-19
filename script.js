@@ -4,6 +4,27 @@ function initializeGame() {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
+  // Scale canvas to fit viewport while maintaining aspect ratio
+  function resizeCanvas() {
+    const maxWidth = window.innerWidth * 0.9;
+    const maxHeight = window.innerHeight * 0.7;
+    const aspectRatio = 800 / 600;
+    
+    let width = maxWidth;
+    let height = width / aspectRatio;
+    
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * aspectRatio;
+    }
+    
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+  
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
   // Load character images
   const freddyMask = new Image();
   freddyMask.src = 'images/character1.png';
@@ -30,8 +51,26 @@ function initializeGame() {
   window.gameCtx = ctx;
 }
 
-// Initialize the game
-initializeGame();
+// Initialize the game when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  initializeGame();
+  
+  // Initialize UI after DOM is ready
+  document.getElementById('night').textContent = `Night ${gameState.night}`;
+  
+  // Start the game loop
+  requestAnimationFrame(gameLoop);
+  
+  // Check image loading status after a delay
+  setTimeout(() => {
+    console.log('=== IMAGE LOADING STATUS ===');
+    console.log('Freddy:', imageLoadStatus.freddy ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.freddy.width + 'x' + animatronicImages.freddy.height);
+    console.log('Bonnie:', imageLoadStatus.bonnie ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.bonnie.width + 'x' + animatronicImages.bonnie.height);
+    console.log('Chica:', imageLoadStatus.chica ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.chica.width + 'x' + animatronicImages.chica.height);
+    console.log('Foxy:', imageLoadStatus.foxy ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.foxy.width + 'x' + animatronicImages.foxy.height);
+    console.log('==========================');
+  }, 2000);
+});
 
 // Helper function to safely get DOM elements
 function safeGetElement(id) {
@@ -256,6 +295,7 @@ function draw3DWall(x, y, w, h, colorDark, colorLight) {
 }
 
 function draw3DDoor(x, y, w, h, open, side) {
+  const ctx = window.gameCtx;
   const anim = side === 'left' ? doorAnimation.leftDoor : doorAnimation.rightDoor;
   
   if (!open && anim.position < 1) {
@@ -355,6 +395,7 @@ function draw3DDoor(x, y, w, h, open, side) {
 }
 
 function drawOpenLeftDoorway(x, y, w, h) {
+  const ctx = window.gameCtx;
   // West Hall background when door is open
   const hallGradient = ctx.createLinearGradient(x, y, x + w, y + h);
   hallGradient.addColorStop(0, '#444');
@@ -426,6 +467,7 @@ function drawOpenLeftDoorway(x, y, w, h) {
 }
 
 function drawOpenRightDoorway(x, y, w, h) {
+  const ctx = window.gameCtx;
   // East Hall background when door is open
   const hallGradient = ctx.createLinearGradient(x + w, y, x, y + h);
   hallGradient.addColorStop(0, '#444');
@@ -497,6 +539,7 @@ function drawOpenRightDoorway(x, y, w, h) {
 }
 
 function draw3DDesk() {
+  const ctx = window.gameCtx;
   // Desk with 3D perspective
   const deskX = 250, deskY = 320, deskW = 300, deskH = 120;
   
@@ -570,6 +613,14 @@ function draw3DDesk() {
   ctx.font = '10px monospace';
   ctx.fillText('Freddy Fazbear\'s Pizza', monitorX + 15, monitorY + 25);
   
+  // Small Freddy on monitor screen
+  if (animatronicImages.freddy.complete) {
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.drawImage(animatronicImages.freddy, monitorX + 30, monitorY + 35, 40, 48);
+    ctx.restore();
+  }
+  
   // Shadow under desk
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.fillRect(deskX - 10, deskY + deskH + 55, deskW + 20, 10);
@@ -577,6 +628,7 @@ function draw3DDesk() {
 
 function draw3DFloor() {
   // Floor with CHECKERED PATTERN
+  const ctx = window.gameCtx;
   const floorY = 500;
   const tileSize = 67;
   const tileCount = 12;
@@ -652,6 +704,7 @@ function drawCamera() {
 }
 
 function drawMiniCameraView() {
+  const ctx = window.gameCtx;
   // Draw small preview of current camera
   ctx.save();
   ctx.scale(0.25, 0.25); // Scale down to 1/4 size
@@ -695,6 +748,7 @@ function drawCameraStatic() {
 }
 
 function drawCameraVignette() {
+  const ctx = window.gameCtx;
   // Dark vignette effect for camera view
   const vignette = ctx.createRadialGradient(400, 300, 100, 400, 300, 500);
   vignette.addColorStop(0, 'rgba(0,0,0,0)');
@@ -705,6 +759,7 @@ function drawCameraVignette() {
 }
 
 function drawScanLines() {
+  const ctx = window.gameCtx;
   // CRT scan lines effect
   ctx.strokeStyle = 'rgba(0,0,0,0.1)';
   ctx.lineWidth = 1;
@@ -717,6 +772,7 @@ function drawScanLines() {
 }
 
 function drawStaticOverlay() {
+  const ctx = window.gameCtx;
   // Animated static overlay
   ctx.fillStyle = 'rgba(255,255,255,0.02)';
   for(let i = 0; i < 50; i++) {
@@ -750,6 +806,7 @@ function getCameraTime() {
 }
 
 function drawShowStage3D() {
+  const ctx = window.gameCtx;
   // Darker camera view with security camera aesthetics
   ctx.save();
   
@@ -895,6 +952,7 @@ function drawShowStage3D() {
 
 // 3D Helper Functions
 function draw3DTable(x, y, width, height, scale) {
+  const ctx = window.gameCtx;
   const scaledWidth = width * scale;
   const scaledHeight = height * scale;
   
@@ -922,6 +980,7 @@ function draw3DTable(x, y, width, height, scale) {
 }
 
 function draw3DPoster(x, y, width, height, color) {
+  const ctx = window.gameCtx;
   // Poster with 3D frame
   ctx.fillStyle = '#333';
   ctx.fillRect(x - 5, y - 5, width + 10, height + 10);
@@ -936,6 +995,7 @@ function draw3DPoster(x, y, width, height, color) {
 }
 
 function draw3DTrashCan(x, y, width, height) {
+  const ctx = window.gameCtx;
   // 3D trash can
   const canGradient = ctx.createLinearGradient(x, y, x + width, y);
   canGradient.addColorStop(0, '#666');
@@ -949,6 +1009,7 @@ function draw3DTrashCan(x, y, width, height) {
 }
 
 function draw3DFloorTiles(x, y, width, height) {
+  const ctx = window.gameCtx;
   const tileSize = 50;
   for(let row = 0; row < 2; row++) {
     for(let col = 0; col < width / tileSize; col++) {
@@ -966,6 +1027,7 @@ function draw3DFloorTiles(x, y, width, height) {
 }
 
 function draw3DPerspectiveFloor(x, y, width, height) {
+  const ctx = window.gameCtx;
   // Floor tiles with perspective
   const tileCount = 12;
   for(let i = 0; i < tileCount; i++) {
@@ -982,6 +1044,7 @@ function draw3DPerspectiveFloor(x, y, width, height) {
 
 // 3D Animatronic Drawing Functions
 function draw3DFreddy(x, y, scale) {
+  const ctx = window.gameCtx;
   const scaledSize = 80 * scale;
   
   // Enhanced shadow with more realistic shape
@@ -1165,6 +1228,7 @@ function draw3DFreddy(x, y, scale) {
 }
 
 function draw3DChica(x, y, scale) {
+  const ctx = window.gameCtx;
   const scaledSize = 80 * scale;
   
   // Enhanced shadow
@@ -1417,6 +1481,7 @@ function draw3DChica(x, y, scale) {
 }
 
 function draw3DFoxy(x, y, scale, state) {
+  const ctx = window.gameCtx;
   const scaledSize = 100 * scale;
   
   // Enhanced shadow
@@ -1809,6 +1874,7 @@ function drawOffice3D() {
 
 // Warning window functions
 function drawLeftWarningWindow() {
+  const ctx = window.gameCtx;
   // Show warning when Bonnie is close (position 3 or 4)
   if (animatronics.bonnie.position >= 3) {
     const warningLevel = animatronics.bonnie.position === 3 ? 0.3 : 0.6;
@@ -1835,6 +1901,7 @@ function drawLeftWarningWindow() {
 }
 
 function drawRightWarningWindow() {
+  const ctx = window.gameCtx;
   // Show warning when Chica is close (position 3 or 4)
   if (animatronics.chica.position >= 3) {
     const warningLevel = animatronics.chica.position === 3 ? 0.3 : 0.6;
@@ -2070,6 +2137,7 @@ function restartGame() {
 
 // Camera-specific drawing functions with darker lighting
 function draw3DTableCamera(x, y, w, h, scale) {
+  const ctx = window.gameCtx;
   // Table with camera darkness
   ctx.fillStyle = '#3A2418';
   ctx.fillRect(x, y, w * scale, h * scale);
@@ -2082,6 +2150,7 @@ function draw3DTableCamera(x, y, w, h, scale) {
 }
 
 function draw3DPosterCamera(x, y, w, h, color) {
+  const ctx = window.gameCtx;
   // Poster with camera lighting
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.fillRect(x, y, w, h);
@@ -2090,6 +2159,7 @@ function draw3DPosterCamera(x, y, w, h, color) {
 }
 
 function draw3DFreddyCamera(x, y, scale) {
+  const ctx = window.gameCtx;
   // Freddy with camera lighting
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.fillRect(x - 10, y - 10, 120 * scale, 180 * scale);
@@ -2116,6 +2186,7 @@ function draw3DFreddyCamera(x, y, scale) {
 }
 
 function draw3DChicaCamera(x, y, scale) {
+  const ctx = window.gameCtx;
   // Chica with camera lighting
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.fillRect(x - 10, y - 10, 120 * scale, 200 * scale);
@@ -2148,6 +2219,7 @@ function draw3DChicaCamera(x, y, scale) {
 }
 
 function drawDiningArea3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Camera darkness filter
@@ -2299,6 +2371,7 @@ function drawDiningArea3D() {
 }
 
 function drawWestHallCorner3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Heavy camera darkness for corner view
@@ -2340,6 +2413,7 @@ function drawWestHallCorner3D() {
 }
 
 function drawPirateCove3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Camera darkness filter
@@ -2479,6 +2553,7 @@ function drawPirateCove3D() {
 
 // Add placeholder functions for other cameras
 function drawWestHall3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Camera darkness filter
@@ -2524,6 +2599,7 @@ function drawWestHall3D() {
 }
 
 function drawSupplyCloset3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Camera darkness filter
@@ -2564,6 +2640,7 @@ function drawSupplyCloset3D() {
 }
 
 function drawEastHall3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Camera darkness filter
@@ -2700,6 +2777,7 @@ function drawEastHall3D() {
 }
 
 function drawEastHallCorner3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Heavy camera darkness for corner view
@@ -2796,6 +2874,7 @@ function drawEastHallCorner3D() {
 }
 
 function drawBackstage3D() {
+  const ctx = window.gameCtx;
   ctx.save();
   
   // Heavy camera darkness for backstage
@@ -2969,19 +3048,3 @@ function gameLoop(timestamp) {
 
   requestAnimationFrame(gameLoop);
 }
-
-// Initialize UI after DOM is ready
-document.getElementById('night').textContent = `Night ${gameState.night}`;
-
-// Check image loading status after a delay
-setTimeout(() => {
-  console.log('=== IMAGE LOADING STATUS ===');
-  console.log('Freddy:', imageLoadStatus.freddy ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.freddy.width + 'x' + animatronicImages.freddy.height);
-  console.log('Bonnie:', imageLoadStatus.bonnie ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.bonnie.width + 'x' + animatronicImages.bonnie.height);
-  console.log('Chica:', imageLoadStatus.chica ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.chica.width + 'x' + animatronicImages.chica.height);
-  console.log('Foxy:', imageLoadStatus.foxy ? 'LOADED' : 'FAILED', 'Dimensions:', animatronicImages.foxy.width + 'x' + animatronicImages.foxy.height);
-  console.log('==========================');
-}, 2000);
-
-// Start the game loop
-requestAnimationFrame(gameLoop);
